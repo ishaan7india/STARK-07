@@ -1,0 +1,36 @@
+.stark-logo-pulse {
+	transform-origin: center;
+	animation: stark-logo-pulse 3.4s ease-in-out infinite;
+}
+
+@keyframes stark-logo-pulse {
+	0%,
+	100% {
+		transform: scale(1);
+		filter: drop-shadow(0 0 1px color-mix(in srgb, var(--bloom-accent, #a5b38f) 22%, transparent));
+	}
+	50% {
+		transform: scale(1.035);
+		filter: drop-shadow(0 0 9px color-mix(in srgb, var(--bloom-accent, #a5b38f) 48%, transparent));
+	}
+}
+
+.stark-lockup-loading {
+	width: 132px;
+	height: 132px;
+	object-fit: contain;
+	user-select: none;
+	-webkit-user-drag: none;
+}
+
+.stark-dock-logo {
+	object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.stark-logo-pulse {
+		animation: none !important;
+	transform: none;
+	filter: none;
+	}
+}

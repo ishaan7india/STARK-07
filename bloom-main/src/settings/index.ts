@@ -1,0 +1,11 @@
+export { useSettings } from "./useSettings";
+export { SettingRow } from "./SettingRow";
+export { GeneralTab } from "./GeneralTab";
+export { AppearanceTab } from "./AppearanceTab";
+export { NotchTab } from "./NotchTab";
+export { WallpaperTab } from "./WallpaperTab";
+export { DockTab } from "./DockTab";
+export { StartMenuTab } from "./StartMenuTab";
+export { OverlaysTab } from "./OverlaysTab";
+export { AboutTab } from "./AboutTab";
+export type { WidgetConfig, SettingsTab, SettingRowProps } from "./types";
