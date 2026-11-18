@@ -1218,6 +1218,19 @@ pub fn save_setting_file(
     settings.insert(key, value);
     write_settings_file(path, &settings)?;
     replace_settings_cache(settings.clone());
+    if let Some(config_dir) = path.parent() {
+        if let Some(parent) = config_dir.parent() {
+            let alt_name = if config_dir.file_name().and_then(|n| n.to_str()) == Some("com.stark07.desktop") {
+                "com.sehaz.bloom"
+            } else {
+                "com.stark07.desktop"
+            };
+            let alt_dir = parent.join(alt_name);
+            if alt_dir.exists() {
+                let _ = write_settings_file(&alt_dir.join("settings.json"), &settings);
+            }
+        }
+    }
     Ok(settings)
 }
 
@@ -1227,16 +1240,95 @@ pub fn init_settings_cache(app: &tauri::AppHandle) {
     use tauri::Manager;
     let cache =
         SETTINGS_CACHE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
-    if let Some(path) = app
-        .path()
-        .app_config_dir()
-        .ok()
-        .map(|p| p.join("settings.json"))
-    {
-        if let Ok(settings) = read_settings_file(&path) {
-            if let Ok(mut cache) = cache.lock() {
-                *cache = settings;
+    if let Ok(config_dir) = app.path().app_config_dir() {
+        let path = config_dir.join("settings.json");
+        let mut settings = read_settings_file(&path).unwrap_or_default();
+
+        // Bi-directional profile synchronization between com.sehaz.bloom and com.stark07.desktop
+        if let Some(parent) = config_dir.parent() {
+            let alt_name = if config_dir.file_name().and_then(|n| n.to_str()) == Some("com.stark07.desktop") {
+                "com.sehaz.bloom"
+            } else {
+                "com.stark07.desktop"
+            };
+            let alt_dir = parent.join(alt_name);
+            let alt_path = alt_dir.join("settings.json");
+
+            if alt_path.exists() {
+                if let Ok(alt_settings) = read_settings_file(&alt_path) {
+                    let mut changed = false;
+                    for (k, v) in alt_settings {
+                        if !settings.contains_key(&k) {
+                            settings.insert(k, v);
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        let _ = std::fs::create_dir_all(&config_dir);
+                        let _ = std::fs::write(&path, serde_json::to_string(&settings).unwrap_or_default());
+                    }
+                }
             }
+
+            // Sync settings to the alternate directory
+            if !settings.is_empty() {
+                let _ = std::fs::create_dir_all(&alt_dir);
+                let _ = std::fs::write(&alt_path, serde_json::to_string(&settings).unwrap_or_default());
+            }
+
+            // Pinned apps synchronization
+            let pinned_path = config_dir.join("pinned_apps.json");
+            let alt_pinned = alt_dir.join("pinned_apps.json");
+            if !pinned_path.exists() && alt_pinned.exists() {
+                let _ = std::fs::create_dir_all(&config_dir);
+                let _ = std::fs::copy(&alt_pinned, &pinned_path);
+            } else if pinned_path.exists() && !alt_pinned.exists() {
+                let _ = std::fs::create_dir_all(&alt_dir);
+                let _ = std::fs::copy(&pinned_path, &alt_pinned);
+            }
+
+            // Icons cache synchronization (prefer larger cache file)
+            let icons_path = config_dir.join("icons_cache.json");
+            let alt_icons = alt_dir.join("icons_cache.json");
+            let current_len = std::fs::metadata(&icons_path).map(|m| m.len()).unwrap_or(0);
+            let alt_len = std::fs::metadata(&alt_icons).map(|m| m.len()).unwrap_or(0);
+            if alt_len > current_len {
+                let _ = std::fs::create_dir_all(&config_dir);
+                let _ = std::fs::copy(&alt_icons, &icons_path);
+            } else if current_len > alt_len && current_len > 0 {
+                let _ = std::fs::create_dir_all(&alt_dir);
+                let _ = std::fs::copy(&icons_path, &alt_icons);
+            }
+
+            // Custom icons synchronization
+            let custom_icons = config_dir.join("custom_icons");
+            let alt_custom = alt_dir.join("custom_icons");
+            if alt_custom.exists() {
+                let _ = std::fs::create_dir_all(&custom_icons);
+                if let Ok(entries) = std::fs::read_dir(&alt_custom) {
+                    for entry in entries.flatten() {
+                        let target = custom_icons.join(entry.file_name());
+                        if !target.exists() {
+                            let _ = std::fs::copy(entry.path(), target);
+                        }
+                    }
+                }
+            }
+            if custom_icons.exists() {
+                let _ = std::fs::create_dir_all(&alt_custom);
+                if let Ok(entries) = std::fs::read_dir(&custom_icons) {
+                    for entry in entries.flatten() {
+                        let target = alt_custom.join(entry.file_name());
+                        if !target.exists() {
+                            let _ = std::fs::copy(entry.path(), target);
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Ok(mut cache_lock) = cache.lock() {
+            *cache_lock = settings;
         }
     }
 }

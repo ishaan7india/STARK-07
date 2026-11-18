@@ -1961,6 +1961,19 @@ pub fn save_pinned_apps(app: AppHandle, apps: Vec<AppInfo>) -> Result<(), String
     }
     let content = serde_json::to_string(&apps).map_err(|e| e.to_string())?;
     crate::utils::atomic_write_file(&path, content.as_bytes())?;
+    if let Some(config_dir) = path.parent() {
+        if let Some(parent) = config_dir.parent() {
+            let alt_name = if config_dir.file_name().and_then(|n| n.to_str()) == Some("com.stark07.desktop") {
+                "com.sehaz.bloom"
+            } else {
+                "com.stark07.desktop"
+            };
+            let alt_dir = parent.join(alt_name);
+            if alt_dir.exists() {
+                let _ = crate::utils::atomic_write_file(&alt_dir.join("pinned_apps.json"), content.as_bytes());
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1987,16 +2000,34 @@ fn refresh_pinned_names(mut apps: Vec<AppInfo>) -> Vec<AppInfo> {
 
 #[tauri::command]
 pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap_or_default()
-        .join("pinned_apps.json");
-    if let Ok(content) = std::fs::read_to_string(path) {
+    let config_dir = app.path().app_config_dir().unwrap_or_default();
+    let path = config_dir.join("pinned_apps.json");
+    if let Ok(content) = std::fs::read_to_string(&path) {
         if let Ok(apps) = serde_json::from_str::<Vec<AppInfo>>(&content) {
-            return tauri::async_runtime::spawn_blocking(move || refresh_pinned_names(apps))
-                .await
-                .unwrap_or_default();
+            if !apps.is_empty() {
+                return tauri::async_runtime::spawn_blocking(move || refresh_pinned_names(apps))
+                    .await
+                    .unwrap_or_default();
+            }
+        }
+    }
+    // Check fallback/alternate config directory (e.g. com.sehaz.bloom <-> com.stark07.desktop)
+    if let Some(parent) = config_dir.parent() {
+        let alt_name = if config_dir.file_name().and_then(|n| n.to_str()) == Some("com.stark07.desktop") {
+            "com.sehaz.bloom"
+        } else {
+            "com.stark07.desktop"
+        };
+        let alt_path = parent.join(alt_name).join("pinned_apps.json");
+        if let Ok(content) = std::fs::read_to_string(&alt_path) {
+            if let Ok(apps) = serde_json::from_str::<Vec<AppInfo>>(&content) {
+                if !apps.is_empty() {
+                    let _ = std::fs::copy(&alt_path, &path);
+                    return tauri::async_runtime::spawn_blocking(move || refresh_pinned_names(apps))
+                        .await
+                        .unwrap_or_default();
+                }
+            }
         }
     }
     vec![
@@ -3207,11 +3238,37 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
 
 #[tauri::command]
 pub fn load_settings(app: AppHandle) -> Result<HashMap<String, serde_json::Value>, String> {
-    let path = match app.path().app_config_dir() {
-        Ok(p) => p.join("settings.json"),
+    let config_dir = match app.path().app_config_dir() {
+        Ok(p) => p,
         Err(_) => return Ok(HashMap::new()),
     };
-    crate::utils::read_settings_file(&path)
+    let path = config_dir.join("settings.json");
+    let mut settings = crate::utils::read_settings_file(&path).unwrap_or_default();
+
+    if let Some(parent) = config_dir.parent() {
+        let alt_name = if config_dir.file_name().and_then(|n| n.to_str()) == Some("com.stark07.desktop") {
+            "com.sehaz.bloom"
+        } else {
+            "com.stark07.desktop"
+        };
+        let alt_path = parent.join(alt_name).join("settings.json");
+        if alt_path.exists() {
+            if let Ok(alt_settings) = crate::utils::read_settings_file(&alt_path) {
+                let mut changed = false;
+                for (k, v) in alt_settings {
+                    if !settings.contains_key(&k) {
+                        settings.insert(k, v);
+                        changed = true;
+                    }
+                }
+                if changed {
+                    let _ = std::fs::create_dir_all(&config_dir);
+                    let _ = std::fs::write(&path, serde_json::to_string(&settings).unwrap_or_default());
+                }
+            }
+        }
+    }
+    Ok(settings)
 }
 
 /// Whether settings.json exists and parses, which load_settings can't tell
@@ -3220,7 +3277,19 @@ pub fn load_settings(app: AppHandle) -> Result<HashMap<String, serde_json::Value
 pub fn settings_file_readable(app: AppHandle) -> bool {
     app.path().app_config_dir().ok().is_some_and(|dir| {
         let path = dir.join("settings.json");
-        path.exists() && crate::utils::read_settings_file(&path).is_ok()
+        if path.exists() && crate::utils::read_settings_file(&path).is_ok() {
+            true
+        } else if let Some(parent) = dir.parent() {
+            let alt_name = if dir.file_name().and_then(|n| n.to_str()) == Some("com.stark07.desktop") {
+                "com.sehaz.bloom"
+            } else {
+                "com.stark07.desktop"
+            };
+            let alt_path = parent.join(alt_name).join("settings.json");
+            alt_path.exists() && crate::utils::read_settings_file(&alt_path).is_ok()
+        } else {
+            false
+        }
     })
 }
 

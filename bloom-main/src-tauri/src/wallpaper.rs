@@ -53,11 +53,21 @@ pub fn show_sync(app: &AppHandle) -> Result<(), String> {
     }
     let window = ensure_window(app)?;
     size_to_primary_monitor(&window);
+    let _ = window.unminimize();
     window.show().map_err(|e| e.to_string())?;
-    // Keep the canvas behind normal app windows and above the static desktop
-    // background. The dock and notch are always-on-top, so they stay usable.
-    window.set_always_on_bottom(true).map_err(|e| e.to_string())?;
+    let _ = window.set_focus();
     let _ = window.set_ignore_cursor_events(false);
+    if let Ok(hwnd) = window.hwnd() {
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+            };
+            let _ = ShowWindow(hwnd, SW_SHOW);
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+            let _ = SetForegroundWindow(hwnd);
+        }
+    }
+    crate::diagnostics::record("wallpaper", "show_sync completed");
     Ok(())
 }
 

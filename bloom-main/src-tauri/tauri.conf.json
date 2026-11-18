@@ -2,10 +2,8 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "STARK-07 OS",
   "version": "3.10.1",
-  "identifier": "com.stark07.desktop",
+  "identifier": "com.sehaz.bloom",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -64,14 +62,14 @@
         "y": 0,
         "decorations": false,
         "transparent": false,
-        "resizable": false,
-        "maximizable": false,
-        "minimizable": false,
+        "resizable": true,
+        "maximizable": true,
+        "minimizable": true,
         "closable": false,
         "alwaysOnTop": false,
         "visibleOnAllWorkspaces": true,
-        "focus": false,
-        "skipTaskbar": true,
+        "focus": true,
+        "skipTaskbar": false,
         "shadow": false,
         "visible": false
       },
@@ -119,7 +117,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://bloom.sehaz.space"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://tauri.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://bloom.sehaz.space"
     }
   },
   "bundle": {

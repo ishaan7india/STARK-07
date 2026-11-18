@@ -381,11 +381,9 @@ fn main() {
             {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
-                    if crate::utils::get_setting_str(&handle, "bloom-wallpaper-enabled")
-                        .as_deref()
-                        == Some("true")
-                    {
+                    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                    let enabled = crate::utils::get_setting_str(&handle, "bloom-wallpaper-enabled");
+                    if enabled.as_deref() != Some("false") {
                         let _ = crate::wallpaper::show_sync(&handle);
                     }
                 });
